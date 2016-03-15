@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<script>
+function chavolix() {
+  var chavolixObj = {};
+  
+  chavolixObj.interval   = 0;
+  chavolixObj.intervalId = 0;
+  chavolixObj.time       = 0;
+  chavolixObj.anims      = new Array();
+  chavolixObj.started    = false;
+  chavolixObj.paused     = false;
+  chavolixObj.duration   = 0;
+  chavolixObj.looping    = false;
+  chavolixObj.pingPonging= false;
+  
+  chavolixObj.setInterval = function(millis) {
+    chavolixObj.timeinterval = millis;
+  }
+  
+  chavolixObj.setFrameRate = function(framesPerSecond) {
+    chavolixObj.interval = Math.round(1000 / framesPerSecond);
+  }
+  
+  chavolixObj.start = function() {
+    if(chavolixObj.started) {
+	  return; //do nothing - could also throw exception 
+	}
+	var anims = chavolixObj.anims;
+	for(var i=0; i<anims.length; i++) {
+	  if(anims[i].init != null) {
+        anims[i].init();  
+	  }
+    } 	
+	
+    chavolixObj.time       = 0;
+	chavolixObj.started    = true;
+	chavolixObj.intervalId = setInterval(function() { chavolixObj.renderFrame(); }, chavolixObj.interval);
+  }
+  
+  chavolixObj.pause = function(){
+    chavolixObj.paused = true;
+	
+	clearInterval(chavolixObj.intervalId);
+  }
+  
+  chavolixObj.resume = function() {
+    if(!chavolixObj.paused) {
+	  return;
+	}
+	chavolixObj.paused = false;
+	chavolixObj.intervalId = setInterval(function() { chavolixObj.renderFrame(); }, chavolixObj.interval);
+  }
+  
+  chavolixObj.seek = function(millis) {
+    chavolixObj.time = millis;
+  }
+  
+  chavolixObj.stop = function() {
+    chavolixObj.started = false;
+	clearInterval(chavolixObj.intervalId);
+    console.log("stopped");
+  }
+  
+  chavolixObj.reverse = function(doReverse) {
+    if(doReverse && chavolixObj.interval > 0) {
+	  chavolixObj.interval = -chavolixObj.interval;
+	} else if(!doReverse && chavolixObj.interval < 0){
+	  chavolixObj.interval = -chavolixObj.interval;
+	}
+  }
+  
+  chavolixObj.loop = function(doLoop) {
+    chavolixObj.looping = doLoop;
+  }
+  
+  chavolixObj.pingPong = function(doPingPong) {
+    chavolixObj.pingPonging = doPingPong;
+  }
+  
+  
+  
+  chavolixObj.checkStop = function(gTime) {
+    if(chavolixObj.interval > 0 && gTime > chavolixObj.duration) {
+	  if(chavolixObj.looping) {
+	    chavolixObj.time = 0;
+		//console.log("looping forward");
+		return false;
+	  } else if(chavolixObj.pingPonging) {
+	    chavolixObj.reverse(true);
+		return false;
+	  } else {
+	    chavolixObj.stop();
+		return true;
+	  } 
+	} else if(chavolixObj.interval < 0 && gTime < 0) {
+	  if(chavolixObj.looping) {
+	    chavolixObj.time = chavolixObj.duration;
+		//console.log("looping backwards");
+		return false;
+	  } else if(chavolixObj.pingPonging) {
+	    chavolixObj.reverse(false);
+		return false;
+	  } else {
+  	    chavolixObj.stop();
+		return true;
+	  }
+	}
+  
+  }
+  
+  chavolixObj.renderFrame = function() {
+   	var gTime = chavolixObj.time;
+	var lTime = 0;	
+	var anims = chavolixObj.anims;
+	
+	
+	//call calc() functions of active anims.
+	for(var i=0; i<anims.length; i++) {
+	  if(gTime >= anims[i].startTime &&
+         gTime <= anims[i].startTime + anims[i].duration) {
+         
+		 if(anims[i].calc != null) {
+  		   lTime = gTime - anims[i].startTime;
+		 
+		   anims[i].calc(lTime, gTime);
+		 }
+      }		 
+	}
+	
+	//call render() functions of active anims.
+	for(var i=0; i<anims.length; i++) {
+	  if(gTime >= anims[i].startTime &&
+         gTime <= anims[i].startTime + anims[i].duration) {
+         
+		 lTime = gTime - anims[i].startTime;
+		 
+		 anims[i].render(lTime, gTime);
+      }		 
+	}
+
+	//move to next frame
+    chavolixObj.time += chavolixObj.interval;
+	
+	//check if time to stop, loop or ping pong (reverse direction)
+    chavolixObj.checkStop(chavolixObj.time);
+
+  }
+  
+  
+  chavolixObj.addAnim = function(anim) {
+	chavolixObj.anims.push(anim);
+  }
+
+  return chavolixObj;
+}
+</script>
+
+
+<script>
+var chavo = chavolix();
+
+
+var anim1 = {
+  startTime : 1000,
+  duration  : 5000,
+
+  startX : 100,
+  endX   : 1000,
+  
+  render : function(lTime, gTime) {
+	var xPos = (this.endX - this.startX) * (lTime / this.duration);
+
+    document.getElementById("obj").style["left"] = xPos + "px";
+    document.getElementById("timeField").value = "" + lTime +	" : " + gTime;
+  }
+
+}
+
+chavo.addAnim(anim1);
+
+chavo.duration = 7000;
+chavo.setFrameRate(50);
+//chavo.start();
+
+
+
+</script>
+
+
+<div id="obj" style="position:fixed; top:100px; left: 0px; width: 100px; height: 50px; border: 1px solid #cccccc;">HTML element</div>
+
+<div>
+ <button onclick="chavo.start();">Start</button>
+ <button onclick="chavo.stop();">Stop</button>
+ <button onclick="chavo.pause();">Pause</button>
+ <button onclick="chavo.resume();">Resume</button>
+ <button onclick="chavo.reverse(true);">Reverse</button>
+ <button onclick="chavo.reverse(false);">Normal</button>
+ <button onclick="chavo.loop(true);">Loop</button>
+ <button onclick="chavo.loop(false);">No Loop</button>
+ <button onclick="chavo.pingPong(true);">Ping Pong</button>
+ <button onclick="chavo.pingPong(false);">No Ping Pong</button>
+ <br>
+ <input id="timeField">
+</div>
+</body>
+</html>
